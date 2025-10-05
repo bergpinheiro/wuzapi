@@ -8,6 +8,7 @@ let isAdminLogin = false;
 let currentInstanceData = null;
 
 document.addEventListener('DOMContentLoaded', function() {
+  console.log('DOMContentLoaded - Initializing WuzAPI dashboard');
 
   let isHandlingChange = false;
 
@@ -274,15 +275,21 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // History Configuration
-  document.getElementById('historyConfig').addEventListener('click', function() {
-    $('#modalHistoryConfig').modal({
-      onApprove: function() {
-        saveHistoryConfig();
-        return false;
-      }
-    }).modal('show');
-    loadHistoryConfig();
-  });
+  const historyConfigElement = document.getElementById('historyConfig');
+  if (historyConfigElement) {
+    historyConfigElement.addEventListener('click', function() {
+      console.log('History config clicked');
+      $('#modalHistoryConfig').modal({
+        onApprove: function() {
+          saveHistoryConfig();
+          return false;
+        }
+      }).modal('show');
+      loadHistoryConfig();
+    });
+  } else {
+    console.error('historyConfig element not found');
+  }
 
   // Proxy Configuration
   document.getElementById('proxyConfig').addEventListener('click', function() {
@@ -301,15 +308,21 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Chatwoot Configuration
-  document.getElementById('chatwootConfig').addEventListener('click', function() {
-    $('#modalChatwootConfig').modal({
-      onApprove: function() {
-        saveChatwootConfig();
-        return false;
-      }
-    }).modal('show');
-    loadChatwootConfig();
-  });
+  const chatwootConfigElement = document.getElementById('chatwootConfig');
+  if (chatwootConfigElement) {
+    chatwootConfigElement.addEventListener('click', function() {
+      console.log('Chatwoot config clicked');
+      $('#modalChatwootConfig').modal({
+        onApprove: function() {
+          saveChatwootConfig();
+          return false;
+        }
+      }).modal('show');
+      loadChatwootConfig();
+    });
+  } else {
+    console.error('chatwootConfig element not found');
+  }
 
   // S3 Test Connection
   document.getElementById('testS3Connection').addEventListener('click', function() {
