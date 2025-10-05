@@ -13,6 +13,14 @@ document.addEventListener('DOMContentLoaded', function() {
   console.log('Semantic UI available:', typeof $.fn.modal !== 'undefined');
 
   let isHandlingChange = false;
+  
+  // Test if we can find elements immediately
+  console.log('Testing element selection:');
+  console.log('s3Config:', document.getElementById('s3Config'));
+  console.log('proxyConfig:', document.getElementById('proxyConfig'));
+  console.log('webhookConfig:', document.getElementById('webhookConfig'));
+  console.log('historyConfig:', document.getElementById('historyConfig'));
+  console.log('chatwootConfig:', document.getElementById('chatwootConfig'));
 
   const loginForm = document.getElementById('loginForm');
   const loginTokenInput = document.getElementById('loginToken');
