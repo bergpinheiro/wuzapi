@@ -925,6 +925,21 @@ a#menulogout, a:visited#menulogout {
   display: none;
 }
 
+/* Chatwoot Configuration Styles */
+#chatwootConfig {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
+
+#chatwootConfig:hover {
+  transform: translateY(-8px) !important;
+  box-shadow: 0 12px 24px rgba(18, 140, 126, 0.15) !important;
+}
+
+#chatwootConfig * {
+  pointer-events: none !important;
+}
+
 /* Mobile Responsiveness for Group Management */
 @media (max-width: 768px) {
     .ui.modal#modalGroupDetails .actions .ui.stackable.grid .column {

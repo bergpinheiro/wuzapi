@@ -273,16 +273,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadS3Config();
   });
 
-  // History Configuration
-  document.getElementById('historyConfig').addEventListener('click', function() {
-    $('#modalHistoryConfig').modal({
-      onApprove: function() {
-        saveHistoryConfig();
-        return false;
-      }
-    }).modal('show');
-    loadHistoryConfig();
-  });
+  // History Configuration - moved to attachWidgetEventListeners()
 
   // Proxy Configuration
   document.getElementById('proxyConfig').addEventListener('click', function() {
@@ -300,16 +291,7 @@ document.addEventListener('DOMContentLoaded', function() {
     webhookModal();
   });
 
-  // Chatwoot Configuration
-  document.getElementById('chatwootConfig').addEventListener('click', function() {
-    $('#modalChatwootConfig').modal({
-      onApprove: function() {
-        saveChatwootConfig();
-        return false;
-      }
-    }).modal('show');
-    loadChatwootConfig();
-  });
+  // Chatwoot Configuration - moved to attachWidgetEventListeners()
 
   // S3 Test Connection
   document.getElementById('testS3Connection').addEventListener('click', function() {
@@ -444,6 +426,9 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   init();
+  
+  // Attach widget event listeners after DOM is loaded
+  attachWidgetEventListeners();
 });
 
 async function addInstance(data) {
@@ -837,6 +822,69 @@ function showWidgets() {
   document.querySelectorAll('.widget').forEach(widget => {
     widget.classList.remove('hidden');
   });
+  
+  // Re-attach event listeners for widgets that might not have been attached yet
+  attachWidgetEventListeners();
+}
+
+function attachWidgetEventListeners() {
+  // Chatwoot Configuration - ensure it's properly attached
+  const chatwootElement = document.getElementById('chatwootConfig');
+  console.log('Chatwoot element found:', chatwootElement);
+  console.log('Chatwoot element visible:', chatwootElement ? !chatwootElement.classList.contains('hidden') : false);
+  console.log('Chatwoot element has listener:', chatwootElement ? chatwootElement.hasAttribute('data-listener-attached') : false);
+  
+  if (chatwootElement && !chatwootElement.hasAttribute('data-listener-attached')) {
+    console.log('Attaching Chatwoot event listener');
+    chatwootElement.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('Chatwoot config clicked - event triggered');
+      
+      // Check if modal exists
+      const modal = document.getElementById('modalChatwootConfig');
+      console.log('Chatwoot modal found:', modal);
+      
+      if (modal) {
+        $('#modalChatwootConfig').modal({
+          onApprove: function() {
+            saveChatwootConfig();
+            return false;
+          }
+        }).modal('show');
+        loadChatwootConfig();
+      } else {
+        console.error('Chatwoot modal not found!');
+        showError('Modal de configuração do Chatwoot não encontrado');
+      }
+    });
+    chatwootElement.setAttribute('data-listener-attached', 'true');
+    console.log('Chatwoot event listener attached successfully');
+  }
+  
+  // History Configuration - ensure it's properly attached
+  const historyElement = document.getElementById('historyConfig');
+  console.log('History element found:', historyElement);
+  console.log('History element visible:', historyElement ? !historyElement.classList.contains('hidden') : false);
+  console.log('History element has listener:', historyElement ? historyElement.hasAttribute('data-listener-attached') : false);
+  
+  if (historyElement && !historyElement.hasAttribute('data-listener-attached')) {
+    console.log('Attaching History event listener');
+    historyElement.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('History config clicked - event triggered');
+      $('#modalHistoryConfig').modal({
+        onApprove: function() {
+          saveHistoryConfig();
+          return false;
+        }
+      }).modal('show');
+      loadHistoryConfig();
+    });
+    historyElement.setAttribute('data-listener-attached', 'true');
+    console.log('History event listener attached successfully');
+  }
 }
 
 function hideWidgets() {
