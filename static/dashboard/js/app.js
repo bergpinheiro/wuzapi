@@ -276,6 +276,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // History Configuration
   const historyConfigElement = document.getElementById('historyConfig');
+  console.log('History config element:', historyConfigElement);
   if (historyConfigElement) {
     historyConfigElement.addEventListener('click', function() {
       console.log('History config clicked');
@@ -309,6 +310,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Chatwoot Configuration
   const chatwootConfigElement = document.getElementById('chatwootConfig');
+  console.log('Chatwoot config element:', chatwootConfigElement);
   if (chatwootConfigElement) {
     chatwootConfigElement.addEventListener('click', function() {
       console.log('Chatwoot config clicked');
