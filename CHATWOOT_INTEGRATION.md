@@ -175,7 +175,7 @@ Os logs da integração podem ser encontrados nos logs da Wuzapi com as seguinte
 ├── handlers.go              # Handlers HTTP
 ├── migrations.go            # Migrações do banco
 ├── static/dashboard/
-│   ├── chatwoot.html        # Interface de configuração
+│   └── (modais integrados no index.html)
 │   └── js/app.js           # JavaScript do dashboard
 └── CHATWOOT_INTEGRATION.md  # Esta documentação
 ```
