@@ -141,5 +141,13 @@ func (s *server) routes() {
 
 	s.router.Handle("/newsletter/list", c.Then(s.ListNewsletter())).Methods("GET")
 
+	// Chatwoot Integration Routes
+	s.router.Handle("/integrations/chatwoot/config", c.Then(s.ConfigureChatwoot())).Methods("POST")
+	s.router.Handle("/integrations/chatwoot/config", c.Then(s.GetChatwootConfig())).Methods("GET")
+	s.router.Handle("/integrations/chatwoot/test", c.Then(s.TestChatwootConnection())).Methods("POST")
+	
+	// Webhook route (sem autenticação)
+	s.router.Handle("/integrations/chatwoot/webhook", s.ChatwootWebhookHandler()).Methods("POST")
+
 	s.router.PathPrefix("/").Handler(http.FileServer(http.Dir(exPath + "/static/")))
 }

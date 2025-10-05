@@ -60,6 +60,11 @@ var migrations = []Migration{
 		Name:  "add_quoted_message_id",
 		UpSQL: addQuotedMessageIDSQL,
 	},
+	{
+		ID:    7,
+		Name:  "add_chatwoot_integration",
+		UpSQL: addChatwootIntegrationSQL,
+	},
 }
 
 const changeIDToStringSQL = `
@@ -187,6 +192,68 @@ BEGIN
     -- Add quoted_message_id column to message_history table if it doesn't exist
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'message_history' AND column_name = 'quoted_message_id') THEN
         ALTER TABLE message_history ADD COLUMN quoted_message_id TEXT;
+    END IF;
+END $$;
+
+-- SQLite version (handled in code)
+`
+
+const addChatwootIntegrationSQL = `
+-- PostgreSQL version
+DO $$
+BEGIN
+    -- Create chatwoot_integrations table if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'chatwoot_integrations') THEN
+        CREATE TABLE chatwoot_integrations (
+            id SERIAL PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            base_url TEXT NOT NULL,
+            account_id TEXT NOT NULL,
+            api_token TEXT NOT NULL,
+            inbox_id TEXT NOT NULL,
+            webhook_secret TEXT DEFAULT '',
+            enabled BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id)
+        );
+        
+        CREATE INDEX idx_chatwoot_integrations_user_id ON chatwoot_integrations (user_id);
+    END IF;
+    
+    -- Create chatwoot_conversations table if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'chatwoot_conversations') THEN
+        CREATE TABLE chatwoot_conversations (
+            id SERIAL PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            chatwoot_conversation_id INTEGER NOT NULL,
+            whatsapp_chat_jid TEXT NOT NULL,
+            whatsapp_contact_jid TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, chatwoot_conversation_id),
+            UNIQUE(user_id, whatsapp_chat_jid)
+        );
+        
+        CREATE INDEX idx_chatwoot_conversations_user_id ON chatwoot_conversations (user_id);
+        CREATE INDEX idx_chatwoot_conversations_whatsapp_jid ON chatwoot_conversations (whatsapp_chat_jid);
+    END IF;
+    
+    -- Create chatwoot_message_mapping table if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'chatwoot_message_mapping') THEN
+        CREATE TABLE chatwoot_message_mapping (
+            id SERIAL PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            whatsapp_message_id TEXT NOT NULL,
+            chatwoot_message_id INTEGER NOT NULL,
+            direction TEXT NOT NULL CHECK (direction IN ('inbound', 'outbound')),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, whatsapp_message_id),
+            UNIQUE(user_id, chatwoot_message_id)
+        );
+        
+        CREATE INDEX idx_chatwoot_message_mapping_user_id ON chatwoot_message_mapping (user_id);
+        CREATE INDEX idx_chatwoot_message_mapping_whatsapp_id ON chatwoot_message_mapping (whatsapp_message_id);
     END IF;
 END $$;
 
@@ -397,6 +464,71 @@ func applyMigration(db *sqlx.DB, migration Migration) error {
 		if db.DriverName() == "sqlite" {
 			// Add quoted_message_id column to message_history table for SQLite
 			err = addColumnIfNotExistsSQLite(tx, "message_history", "quoted_message_id", "TEXT")
+		} else {
+			_, err = tx.Exec(migration.UpSQL)
+		}
+	} else if migration.ID == 7 {
+		if db.DriverName() == "sqlite" {
+			// Handle Chatwoot integration tables for SQLite
+			err = createTableIfNotExistsSQLite(tx, "chatwoot_integrations", `
+				CREATE TABLE chatwoot_integrations (
+					id INTEGER PRIMARY KEY AUTOINCREMENT,
+					user_id TEXT NOT NULL,
+					base_url TEXT NOT NULL,
+					account_id TEXT NOT NULL,
+					api_token TEXT NOT NULL,
+					inbox_id TEXT NOT NULL,
+					webhook_secret TEXT DEFAULT '',
+					enabled BOOLEAN DEFAULT 1,
+					created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+					updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+					UNIQUE(user_id),
+					FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+				)`)
+			if err == nil {
+				_, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_chatwoot_integrations_user_id ON chatwoot_integrations (user_id)`)
+			}
+			if err == nil {
+				err = createTableIfNotExistsSQLite(tx, "chatwoot_conversations", `
+					CREATE TABLE chatwoot_conversations (
+						id INTEGER PRIMARY KEY AUTOINCREMENT,
+						user_id TEXT NOT NULL,
+						chatwoot_conversation_id INTEGER NOT NULL,
+						whatsapp_chat_jid TEXT NOT NULL,
+						whatsapp_contact_jid TEXT NOT NULL,
+						created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+						updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+						UNIQUE(user_id, chatwoot_conversation_id),
+						UNIQUE(user_id, whatsapp_chat_jid),
+						FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+					)`)
+			}
+			if err == nil {
+				_, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_chatwoot_conversations_user_id ON chatwoot_conversations (user_id)`)
+			}
+			if err == nil {
+				_, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_chatwoot_conversations_whatsapp_jid ON chatwoot_conversations (whatsapp_chat_jid)`)
+			}
+			if err == nil {
+				err = createTableIfNotExistsSQLite(tx, "chatwoot_message_mapping", `
+					CREATE TABLE chatwoot_message_mapping (
+						id INTEGER PRIMARY KEY AUTOINCREMENT,
+						user_id TEXT NOT NULL,
+						whatsapp_message_id TEXT NOT NULL,
+						chatwoot_message_id INTEGER NOT NULL,
+						direction TEXT NOT NULL CHECK (direction IN ('inbound', 'outbound')),
+						created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+						UNIQUE(user_id, whatsapp_message_id),
+						UNIQUE(user_id, chatwoot_message_id),
+						FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+					)`)
+			}
+			if err == nil {
+				_, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_chatwoot_message_mapping_user_id ON chatwoot_message_mapping (user_id)`)
+			}
+			if err == nil {
+				_, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_chatwoot_message_mapping_whatsapp_id ON chatwoot_message_mapping (whatsapp_message_id)`)
+			}
 		} else {
 			_, err = tx.Exec(migration.UpSQL)
 		}

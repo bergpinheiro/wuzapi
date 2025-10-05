@@ -1180,6 +1180,15 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 						log.Error().Err(err).Msg("Failed to trim message history")
 					}
 				}
+				
+				// Process message for Chatwoot integration (only for incoming messages)
+				if !evt.Info.IsFromMe {
+					go func() {
+						if err := mycli.s.ProcessWhatsAppMessage(mycli.userID, evt.Info.Chat.String(), evt.Info.Sender.String(), evt.Info.ID, messageType, textContent, mediaLink); err != nil {
+							log.Error().Err(err).Msg("Failed to process message for Chatwoot")
+						}
+					}()
+				}
 			} else {
 				log.Debug().Str("messageType", messageType).Str("messageID", evt.Info.ID).Msg("Skipping empty message from history")
 			}

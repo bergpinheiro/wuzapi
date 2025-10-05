@@ -5498,3 +5498,297 @@ func (s *server) saveOutgoingMessageToHistory(userID, chatJID, messageID, messag
 		}
 	}
 }
+
+// ===== CHATWOOT INTEGRATION HANDLERS =====
+
+// ConfigureChatwoot configura a integração com o Chatwoot
+func (s *server) ConfigureChatwoot() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := r.Context().Value("userinfo").(Values).Get("Id")
+		
+		var config struct {
+			BaseURL       string `json:"base_url"`
+			AccountID     string `json:"account_id"`
+			APIToken      string `json:"api_token"`
+			InboxID       string `json:"inbox_id"`
+			WebhookSecret string `json:"webhook_secret"`
+			Enabled       bool   `json:"enabled"`
+		}
+		
+		if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("invalid JSON"))
+			return
+		}
+		
+		// Validar campos obrigatórios
+		if config.BaseURL == "" || config.AccountID == "" || config.APIToken == "" || config.InboxID == "" {
+			s.Respond(w, r, http.StatusBadRequest, errors.New("campos obrigatórios: base_url, account_id, api_token, inbox_id"))
+			return
+		}
+		
+		// Testar conexão
+		client := NewChatwootClient(config.BaseURL, config.APIToken, config.AccountID, config.InboxID)
+		if err := client.TestConnection(); err != nil {
+			s.Respond(w, r, http.StatusBadRequest, fmt.Errorf("erro ao testar conexão: %w", err))
+			return
+		}
+		
+		// Salvar configuração
+		integration := &ChatwootIntegration{
+			UserID:        userID,
+			BaseURL:       config.BaseURL,
+			AccountID:     config.AccountID,
+			APIToken:      config.APIToken,
+			InboxID:       config.InboxID,
+			WebhookSecret: config.WebhookSecret,
+			Enabled:       config.Enabled,
+		}
+		
+		if err := s.SaveChatwootIntegration(integration); err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, fmt.Errorf("erro ao salvar configuração: %w", err))
+			return
+		}
+		
+		s.Respond(w, r, http.StatusOK, map[string]string{"message": "Configuração do Chatwoot salva com sucesso"})
+	}
+}
+
+// GetChatwootConfig obtém a configuração atual do Chatwoot
+func (s *server) GetChatwootConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := r.Context().Value("userinfo").(Values).Get("Id")
+		
+		integration, err := s.GetChatwootIntegration(userID)
+		if err != nil {
+			if err.Error() == "sql: no rows in result set" {
+				s.Respond(w, r, http.StatusNotFound, map[string]string{"message": "Configuração do Chatwoot não encontrada"})
+				return
+			}
+			s.Respond(w, r, http.StatusInternalServerError, fmt.Errorf("erro ao buscar configuração: %w", err))
+			return
+		}
+		
+		// Não retornar o token da API por segurança
+		response := map[string]interface{}{
+			"base_url":        integration.BaseURL,
+			"account_id":      integration.AccountID,
+			"inbox_id":        integration.InboxID,
+			"webhook_secret":  integration.WebhookSecret,
+			"enabled":         integration.Enabled,
+			"created_at":      integration.CreatedAt,
+			"updated_at":      integration.UpdatedAt,
+		}
+		
+		s.Respond(w, r, http.StatusOK, response)
+	}
+}
+
+// TestChatwootConnection testa a conexão com o Chatwoot
+func (s *server) TestChatwootConnection() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := r.Context().Value("userinfo").(Values).Get("Id")
+		
+		integration, err := s.GetChatwootIntegration(userID)
+		if err != nil {
+			s.Respond(w, r, http.StatusNotFound, map[string]string{"message": "Configuração do Chatwoot não encontrada"})
+			return
+		}
+		
+		client := NewChatwootClient(integration.BaseURL, integration.APIToken, integration.AccountID, integration.InboxID)
+		if err := client.TestConnection(); err != nil {
+			s.Respond(w, r, http.StatusBadRequest, map[string]string{"message": "Falha na conexão", "error": err.Error()})
+			return
+		}
+		
+		s.Respond(w, r, http.StatusOK, map[string]string{"message": "Conexão com Chatwoot bem-sucedida"})
+	}
+}
+
+// ChatwootWebhookHandler processa webhooks do Chatwoot
+func (s *server) ChatwootWebhookHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Ler o corpo da requisição
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			log.Error().Err(err).Msg("Erro ao ler corpo do webhook do Chatwoot")
+			s.Respond(w, r, http.StatusBadRequest, errors.New("erro ao ler corpo da requisição"))
+			return
+		}
+		
+		// Validar assinatura do webhook
+		signature := r.Header.Get("X-Chatwoot-Signature")
+		if signature == "" {
+			log.Warn().Msg("Webhook do Chatwoot sem assinatura")
+		}
+		
+		// Decodificar payload
+		var payload ChatwootWebhookPayload
+		if err := json.Unmarshal(body, &payload); err != nil {
+			log.Error().Err(err).Msg("Erro ao decodificar payload do webhook do Chatwoot")
+			s.Respond(w, r, http.StatusBadRequest, errors.New("erro ao decodificar payload"))
+			return
+		}
+		
+		// Buscar configuração do usuário baseada no account_id
+		var userID string
+		query := `SELECT user_id FROM chatwoot_integrations WHERE account_id = $1 AND enabled = true`
+		if s.db.DriverName() == "sqlite" {
+			query = `SELECT user_id FROM chatwoot_integrations WHERE account_id = ? AND enabled = true`
+		}
+		
+		err = s.db.Get(&userID, query, payload.Account.ID)
+		if err != nil {
+			log.Error().Err(err).Int("account_id", payload.Account.ID).Msg("Usuário não encontrado para account_id do Chatwoot")
+			s.Respond(w, r, http.StatusNotFound, errors.New("usuário não encontrado"))
+			return
+		}
+		
+		// Validar assinatura se configurada
+		integration, err := s.GetChatwootIntegration(userID)
+		if err != nil {
+			log.Error().Err(err).Msg("Erro ao buscar configuração do Chatwoot")
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("erro interno"))
+			return
+		}
+		
+		if integration.WebhookSecret != "" {
+			if !ValidateChatwootWebhookSignature(body, signature, integration.WebhookSecret) {
+				log.Warn().Msg("Assinatura inválida do webhook do Chatwoot")
+				s.Respond(w, r, http.StatusUnauthorized, errors.New("assinatura inválida"))
+				return
+			}
+		}
+		
+		// Processar evento
+		if err := s.processChatwootWebhook(userID, &payload); err != nil {
+			log.Error().Err(err).Msg("Erro ao processar webhook do Chatwoot")
+			s.Respond(w, r, http.StatusInternalServerError, errors.New("erro ao processar webhook"))
+			return
+		}
+		
+		s.Respond(w, r, http.StatusOK, map[string]string{"message": "Webhook processado com sucesso"})
+	}
+}
+
+// processChatwootWebhook processa o webhook do Chatwoot e envia mensagem para o WhatsApp
+func (s *server) processChatwootWebhook(userID string, payload *ChatwootWebhookPayload) error {
+	// Verificar se é um evento de mensagem
+	if payload.Event != "message_created" {
+		log.Debug().Str("event", payload.Event).Msg("Evento do Chatwoot ignorado")
+		return nil
+	}
+	
+	// Verificar se a mensagem é de um agente (não do bot)
+	if payload.Message.Sender.Type != "user_bot" {
+		log.Debug().Str("sender_type", payload.Message.Sender.Type).Msg("Mensagem não é de agente, ignorando")
+		return nil
+	}
+	
+	// Buscar conversa mapeada
+	conversation, err := s.GetChatwootConversation(userID, payload.Conversation.ID)
+	if err != nil {
+		log.Error().Err(err).Int("conversation_id", payload.Conversation.ID).Msg("Conversa não encontrada")
+		return fmt.Errorf("conversa não encontrada: %w", err)
+	}
+	
+	// Buscar cliente WhatsApp
+	client, exists := clientManager.GetClient(userID)
+	if !exists {
+		log.Error().Str("user_id", userID).Msg("Cliente WhatsApp não encontrado")
+		return fmt.Errorf("cliente WhatsApp não encontrado")
+	}
+	
+	// Enviar mensagem para o WhatsApp
+	whatsappJID := types.JID{
+		User:   conversation.WhatsAppChatJID,
+		Server: types.DefaultUserServer,
+	}
+	
+	// Processar tipo de mensagem
+	switch payload.Message.MessageType {
+	case 0: // Texto
+		_, err = client.SendMessage(context.Background(), whatsappJID, payload.Message.Content)
+	case 1: // Anexo
+		// Processar anexos
+		for _, attachment := range payload.Message.Attachments {
+			if err := s.sendChatwootAttachmentToWhatsApp(client, whatsappJID, &attachment); err != nil {
+				log.Error().Err(err).Msg("Erro ao enviar anexo do Chatwoot para WhatsApp")
+			}
+		}
+	default:
+		log.Warn().Int("message_type", payload.Message.MessageType).Msg("Tipo de mensagem não suportado")
+	}
+	
+	if err != nil {
+		log.Error().Err(err).Msg("Erro ao enviar mensagem do Chatwoot para WhatsApp")
+		return err
+	}
+	
+	// Salvar mapeamento da mensagem
+	mapping := &ChatwootMessageMapping{
+		UserID:            userID,
+		WhatsAppMessageID: fmt.Sprintf("chatwoot_%d", payload.Message.ID),
+		ChatwootMessageID: payload.Message.ID,
+		Direction:         "outbound",
+	}
+	
+	if err := s.SaveChatwootMessageMapping(mapping); err != nil {
+		log.Error().Err(err).Msg("Erro ao salvar mapeamento de mensagem")
+	}
+	
+	return nil
+}
+
+// sendChatwootAttachmentToWhatsApp envia um anexo do Chatwoot para o WhatsApp
+func (s *server) sendChatwootAttachmentToWhatsApp(client *whatsmeow.Client, jid types.JID, attachment *ChatwootAttachment) error {
+	// Fazer download do anexo
+	resp, err := http.Get(attachment.FileURL)
+	if err != nil {
+		return fmt.Errorf("erro ao baixar anexo: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	fileData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("erro ao ler dados do anexo: %w", err)
+	}
+	
+	// Determinar tipo de mídia baseado no content_type
+	switch attachment.ContentType {
+	case "image/jpeg", "image/png", "image/gif", "image/webp":
+		_, err = client.SendMessage(context.Background(), jid, &waE2E.Message{
+			ImageMessage: &waE2E.ImageMessage{
+				Caption:       &attachment.FileName,
+				JpegThumbnail: fileData,
+				MimeType:      &attachment.ContentType,
+				FileLength:    uint64(len(fileData)),
+			},
+		})
+	case "video/mp4", "video/avi", "video/mov":
+		_, err = client.SendMessage(context.Background(), jid, &waE2E.Message{
+			VideoMessage: &waE2E.VideoMessage{
+				Caption:    &attachment.FileName,
+				MimeType:   &attachment.ContentType,
+				FileLength: uint64(len(fileData)),
+			},
+		})
+	case "audio/mpeg", "audio/mp3", "audio/ogg":
+		_, err = client.SendMessage(context.Background(), jid, &waE2E.Message{
+			AudioMessage: &waE2E.AudioMessage{
+				MimeType:   &attachment.ContentType,
+				FileLength: uint64(len(fileData)),
+			},
+		})
+	default:
+		// Documento genérico
+		_, err = client.SendMessage(context.Background(), jid, &waE2E.Message{
+			DocumentMessage: &waE2E.DocumentMessage{
+				FileName:   &attachment.FileName,
+				MimeType:   &attachment.ContentType,
+				FileLength: uint64(len(fileData)),
+			},
+		})
+	}
+	
+	return err
+}

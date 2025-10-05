@@ -300,6 +300,11 @@ document.addEventListener('DOMContentLoaded', function() {
     webhookModal();
   });
 
+  // Chatwoot Configuration
+  document.getElementById('chatwootConfig').addEventListener('click', function() {
+    window.open('chatwoot.html?token=' + getToken(), '_blank');
+  });
+
   // S3 Test Connection
   document.getElementById('testS3Connection').addEventListener('click', function() {
     testS3Connection();
