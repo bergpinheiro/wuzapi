@@ -66,6 +66,11 @@ var migrations = []Migration{
 		Name:  "add_chatwoot_integration",
 		UpSQL: addChatwootIntegrationSQL,
 	},
+	{
+		ID:    8,
+		Name:  "add_history_column",
+		UpSQL: addHistoryColumnSQL,
+	},
 }
 
 const changeIDToStringSQL = `
@@ -255,6 +260,19 @@ BEGIN
         
         CREATE INDEX idx_chatwoot_message_mapping_user_id ON chatwoot_message_mapping (user_id);
         CREATE INDEX idx_chatwoot_message_mapping_whatsapp_id ON chatwoot_message_mapping (whatsapp_message_id);
+    END IF;
+END $$;
+
+-- SQLite version (handled in code)
+`
+
+const addHistoryColumnSQL = `
+-- PostgreSQL version
+DO $$
+BEGIN
+    -- Add history column to users table if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'history') THEN
+        ALTER TABLE users ADD COLUMN history INTEGER DEFAULT 0;
     END IF;
 END $$;
 
@@ -540,6 +558,13 @@ func applyMigration(db *sqlx.DB, migration Migration) error {
 			if err == nil {
 				_, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_chatwoot_message_mapping_whatsapp_id ON chatwoot_message_mapping (whatsapp_message_id)`)
 			}
+		} else {
+			_, err = tx.Exec(migration.UpSQL)
+		}
+	} else if migration.ID == 8 {
+		if db.DriverName() == "sqlite" {
+			// Add history column to users table for SQLite
+			err = addColumnIfNotExistsSQLite(tx, "users", "history", "INTEGER DEFAULT 0")
 		} else {
 			_, err = tx.Exec(migration.UpSQL)
 		}
