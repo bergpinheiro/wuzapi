@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"image"
 	"image/jpeg"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -5685,15 +5686,15 @@ func (s *server) processChatwootWebhook(userID string, payload *ChatwootWebhookP
 	}
 	
 	// Buscar conversa mapeada
-	conversation, err := s.GetChatwootConversation(userID, payload.Conversation.ID)
+	conversation, err := s.GetChatwootConversation(userID, strconv.Itoa(payload.Conversation.ID))
 	if err != nil {
 		log.Error().Err(err).Int("conversation_id", payload.Conversation.ID).Msg("Conversa não encontrada")
 		return fmt.Errorf("conversa não encontrada: %w", err)
 	}
 	
 	// Buscar cliente WhatsApp
-	client, exists := clientManager.GetClient(userID)
-	if !exists {
+	client := clientManager.GetWhatsmeowClient(userID)
+	if client == nil {
 		log.Error().Str("user_id", userID).Msg("Cliente WhatsApp não encontrado")
 		return fmt.Errorf("cliente WhatsApp não encontrado")
 	}
@@ -5707,7 +5708,9 @@ func (s *server) processChatwootWebhook(userID string, payload *ChatwootWebhookP
 	// Processar tipo de mensagem
 	switch payload.Message.MessageType {
 	case 0: // Texto
-		_, err = client.SendMessage(context.Background(), whatsappJID, payload.Message.Content)
+		_, err = client.SendMessage(context.Background(), whatsappJID, &waE2E.Message{
+			Conversation: &payload.Message.Content,
+		})
 	case 1: // Anexo
 		// Processar anexos
 		for _, attachment := range payload.Message.Attachments {
@@ -5756,36 +5759,40 @@ func (s *server) sendChatwootAttachmentToWhatsApp(client *whatsmeow.Client, jid 
 	// Determinar tipo de mídia baseado no content_type
 	switch attachment.ContentType {
 	case "image/jpeg", "image/png", "image/gif", "image/webp":
+		fileLength := uint64(len(fileData))
 		_, err = client.SendMessage(context.Background(), jid, &waE2E.Message{
 			ImageMessage: &waE2E.ImageMessage{
-				Caption:       &attachment.FileName,
-				JpegThumbnail: fileData,
-				MimeType:      &attachment.ContentType,
-				FileLength:    uint64(len(fileData)),
+				Caption:        &attachment.FileName,
+				JPEGThumbnail:  fileData,
+				Mimetype:       &attachment.ContentType,
+				FileLength:     &fileLength,
 			},
 		})
 	case "video/mp4", "video/avi", "video/mov":
+		fileLength := uint64(len(fileData))
 		_, err = client.SendMessage(context.Background(), jid, &waE2E.Message{
 			VideoMessage: &waE2E.VideoMessage{
 				Caption:    &attachment.FileName,
-				MimeType:   &attachment.ContentType,
-				FileLength: uint64(len(fileData)),
+				Mimetype:   &attachment.ContentType,
+				FileLength: &fileLength,
 			},
 		})
 	case "audio/mpeg", "audio/mp3", "audio/ogg":
+		fileLength := uint64(len(fileData))
 		_, err = client.SendMessage(context.Background(), jid, &waE2E.Message{
 			AudioMessage: &waE2E.AudioMessage{
-				MimeType:   &attachment.ContentType,
-				FileLength: uint64(len(fileData)),
+				Mimetype:   &attachment.ContentType,
+				FileLength: &fileLength,
 			},
 		})
 	default:
 		// Documento genérico
+		fileLength := uint64(len(fileData))
 		_, err = client.SendMessage(context.Background(), jid, &waE2E.Message{
 			DocumentMessage: &waE2E.DocumentMessage{
 				FileName:   &attachment.FileName,
-				MimeType:   &attachment.ContentType,
-				FileLength: uint64(len(fileData)),
+				Mimetype:   &attachment.ContentType,
+				FileLength: &fileLength,
 			},
 		})
 	}
