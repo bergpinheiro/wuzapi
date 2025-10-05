@@ -271,25 +271,35 @@ func GenerateRandomID() (string, error) {
 
 // Initialize the database with migrations
 func initializeSchema(db *sqlx.DB) error {
+	log.Info().Msg("Starting database schema initialization")
+	
 	// Create migrations table if it doesn't exist
 	if err := createMigrationsTable(db); err != nil {
 		return fmt.Errorf("failed to create migrations table: %w", err)
 	}
+	log.Info().Msg("Migrations table created/verified")
 
 	// Get already applied migrations
 	applied, err := getAppliedMigrations(db)
 	if err != nil {
 		return fmt.Errorf("failed to get applied migrations: %w", err)
 	}
+	log.Info().Int("applied_count", len(applied)).Msg("Retrieved applied migrations")
 
 	// Apply missing migrations
 	for _, migration := range migrations {
 		if _, ok := applied[migration.ID]; !ok {
+			log.Info().Int("migration_id", migration.ID).Str("migration_name", migration.Name).Msg("Applying migration")
 			if err := applyMigration(db, migration); err != nil {
 				return fmt.Errorf("failed to apply migration %d: %w", migration.ID, err)
 			}
+			log.Info().Int("migration_id", migration.ID).Msg("Migration applied successfully")
+		} else {
+			log.Info().Int("migration_id", migration.ID).Str("migration_name", migration.Name).Msg("Migration already applied")
 		}
 	}
+	
+	log.Info().Msg("Database schema initialization completed")
 
 	return nil
 }

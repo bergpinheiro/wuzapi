@@ -203,7 +203,22 @@ func checkIfSubscribedToEvent(subscribedEvents []string, eventType string, userI
 
 // Connects to Whatsapp Websocket on server startup if last state was connected
 func (s *server) connectOnStartup() {
-	rows, err := s.db.Queryx("SELECT id,name,token,jid,webhook,events,proxy_url,CASE WHEN s3_enabled THEN 'true' ELSE 'false' END AS s3_enabled,media_delivery,COALESCE(history, 0) as history FROM users WHERE connected=1")
+	// Check if history column exists first
+	var historyColumnExists bool
+	err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM pragma_table_info('users') WHERE name='history')").Scan(&historyColumnExists)
+	if err != nil {
+		// If it's not SQLite or table doesn't exist, assume history column exists
+		historyColumnExists = true
+	}
+	
+	var query string
+	if historyColumnExists {
+		query = "SELECT id,name,token,jid,webhook,events,proxy_url,CASE WHEN s3_enabled THEN 'true' ELSE 'false' END AS s3_enabled,media_delivery,COALESCE(history, 0) as history FROM users WHERE connected=1"
+	} else {
+		query = "SELECT id,name,token,jid,webhook,events,proxy_url,CASE WHEN s3_enabled THEN 'true' ELSE 'false' END AS s3_enabled,media_delivery,0 as history FROM users WHERE connected=1"
+	}
+	
+	rows, err := s.db.Queryx(query)
 	if err != nil {
 		log.Error().Err(err).Msg("DB Problem")
 		return
