@@ -1551,10 +1551,8 @@ async function loadHistoryConfig() {
     
     if (res.ok) {
       const data = await res.json();
-      if (data.code === 200 && data.data && data.data.history) {
-        const historyConfig = data.data.history;
-        $('#history').val(historyConfig);
-        
+      if (data.code === 200 && data.history !== undefined) {
+        $('#history').val(data.history);
       } else {
         $('#history').val('0');
       }
@@ -1734,7 +1732,7 @@ async function loadChatwootConfig() {
         const config = data.data;
         $('#chatwootBaseUrl').val(config.base_url || '');
         $('#chatwootAccountId').val(config.account_id || '');
-        $('#chatwootApiToken').val(config.api_token || '');
+        $('#chatwootApiToken').val(''); // Não mostrar token por segurança
         $('#chatwootInboxId').val(config.inbox_id || '');
         $('#chatwootWebhookSecret').val(config.webhook_secret || '');
         $('#chatwootEnabled').prop('checked', config.enabled || false);

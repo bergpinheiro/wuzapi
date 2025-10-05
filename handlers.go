@@ -5506,7 +5506,7 @@ func (s *server) saveOutgoingMessageToHistory(userID, chatJID, messageID, messag
 func (s *server) ConfigureChatwoot() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := r.Context().Value("userinfo").(Values).Get("Id")
-		
+
 		var config struct {
 			BaseURL       string `json:"base_url"`
 			AccountID     string `json:"account_id"`
@@ -5515,25 +5515,25 @@ func (s *server) ConfigureChatwoot() http.HandlerFunc {
 			WebhookSecret string `json:"webhook_secret"`
 			Enabled       bool   `json:"enabled"`
 		}
-		
+
 		if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
 			s.Respond(w, r, http.StatusBadRequest, errors.New("invalid JSON"))
 			return
 		}
-		
+
 		// Validar campos obrigatórios
 		if config.BaseURL == "" || config.AccountID == "" || config.APIToken == "" || config.InboxID == "" {
 			s.Respond(w, r, http.StatusBadRequest, errors.New("campos obrigatórios: base_url, account_id, api_token, inbox_id"))
 			return
 		}
-		
+
 		// Testar conexão
 		client := NewChatwootClient(config.BaseURL, config.APIToken, config.AccountID, config.InboxID)
 		if err := client.TestConnection(); err != nil {
 			s.Respond(w, r, http.StatusBadRequest, fmt.Errorf("erro ao testar conexão: %w", err))
 			return
 		}
-		
+
 		// Salvar configuração
 		integration := &ChatwootIntegration{
 			UserID:        userID,
@@ -5544,13 +5544,19 @@ func (s *server) ConfigureChatwoot() http.HandlerFunc {
 			WebhookSecret: config.WebhookSecret,
 			Enabled:       config.Enabled,
 		}
-		
+
 		if err := s.SaveChatwootIntegration(integration); err != nil {
 			s.Respond(w, r, http.StatusInternalServerError, fmt.Errorf("erro ao salvar configuração: %w", err))
 			return
 		}
-		
-		s.Respond(w, r, http.StatusOK, map[string]string{"message": "Configuração do Chatwoot salva com sucesso"})
+
+		response := map[string]string{"message": "Configuração do Chatwoot salva com sucesso"}
+		responseJSON, err := json.Marshal(response)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+			return
+		}
+		s.Respond(w, r, http.StatusOK, string(responseJSON))
 	}
 }
 
@@ -5558,7 +5564,7 @@ func (s *server) ConfigureChatwoot() http.HandlerFunc {
 func (s *server) GetChatwootConfig() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := r.Context().Value("userinfo").(Values).Get("Id")
-		
+
 		integration, err := s.GetChatwootIntegration(userID)
 		if err != nil {
 			if err.Error() == "sql: no rows in result set" {
@@ -5568,19 +5574,24 @@ func (s *server) GetChatwootConfig() http.HandlerFunc {
 			s.Respond(w, r, http.StatusInternalServerError, fmt.Errorf("erro ao buscar configuração: %w", err))
 			return
 		}
-		
+
 		// Não retornar o token da API por segurança
 		response := map[string]interface{}{
-			"base_url":        integration.BaseURL,
-			"account_id":      integration.AccountID,
-			"inbox_id":        integration.InboxID,
-			"webhook_secret":  integration.WebhookSecret,
-			"enabled":         integration.Enabled,
-			"created_at":      integration.CreatedAt,
-			"updated_at":      integration.UpdatedAt,
+			"base_url":       integration.BaseURL,
+			"account_id":     integration.AccountID,
+			"inbox_id":       integration.InboxID,
+			"webhook_secret": integration.WebhookSecret,
+			"enabled":        integration.Enabled,
+			"created_at":     integration.CreatedAt,
+			"updated_at":     integration.UpdatedAt,
 		}
-		
-		s.Respond(w, r, http.StatusOK, response)
+
+		responseJSON, err := json.Marshal(response)
+		if err != nil {
+			s.Respond(w, r, http.StatusInternalServerError, err)
+			return
+		}
+		s.Respond(w, r, http.StatusOK, string(responseJSON))
 	}
 }
 
@@ -5588,20 +5599,26 @@ func (s *server) GetChatwootConfig() http.HandlerFunc {
 func (s *server) TestChatwootConnection() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := r.Context().Value("userinfo").(Values).Get("Id")
-		
+
 		integration, err := s.GetChatwootIntegration(userID)
 		if err != nil {
-			s.Respond(w, r, http.StatusNotFound, map[string]string{"message": "Configuração do Chatwoot não encontrada"})
+			response := map[string]string{"message": "Configuração do Chatwoot não encontrada"}
+			responseJSON, _ := json.Marshal(response)
+			s.Respond(w, r, http.StatusNotFound, string(responseJSON))
 			return
 		}
-		
+
 		client := NewChatwootClient(integration.BaseURL, integration.APIToken, integration.AccountID, integration.InboxID)
 		if err := client.TestConnection(); err != nil {
-			s.Respond(w, r, http.StatusBadRequest, map[string]string{"message": "Falha na conexão", "error": err.Error()})
+			response := map[string]string{"message": "Falha na conexão", "error": err.Error()}
+			responseJSON, _ := json.Marshal(response)
+			s.Respond(w, r, http.StatusBadRequest, string(responseJSON))
 			return
 		}
-		
-		s.Respond(w, r, http.StatusOK, map[string]string{"message": "Conexão com Chatwoot bem-sucedida"})
+
+		response := map[string]string{"message": "Conexão com Chatwoot bem-sucedida"}
+		responseJSON, _ := json.Marshal(response)
+		s.Respond(w, r, http.StatusOK, string(responseJSON))
 	}
 }
 
@@ -5615,13 +5632,13 @@ func (s *server) ChatwootWebhookHandler() http.HandlerFunc {
 			s.Respond(w, r, http.StatusBadRequest, errors.New("erro ao ler corpo da requisição"))
 			return
 		}
-		
+
 		// Validar assinatura do webhook
 		signature := r.Header.Get("X-Chatwoot-Signature")
 		if signature == "" {
 			log.Warn().Msg("Webhook do Chatwoot sem assinatura")
 		}
-		
+
 		// Decodificar payload
 		var payload ChatwootWebhookPayload
 		if err := json.Unmarshal(body, &payload); err != nil {
@@ -5629,21 +5646,21 @@ func (s *server) ChatwootWebhookHandler() http.HandlerFunc {
 			s.Respond(w, r, http.StatusBadRequest, errors.New("erro ao decodificar payload"))
 			return
 		}
-		
+
 		// Buscar configuração do usuário baseada no account_id
 		var userID string
 		query := `SELECT user_id FROM chatwoot_integrations WHERE account_id = $1 AND enabled = true`
 		if s.db.DriverName() == "sqlite" {
 			query = `SELECT user_id FROM chatwoot_integrations WHERE account_id = ? AND enabled = true`
 		}
-		
+
 		err = s.db.Get(&userID, query, payload.Account.ID)
 		if err != nil {
 			log.Error().Err(err).Int("account_id", payload.Account.ID).Msg("Usuário não encontrado para account_id do Chatwoot")
 			s.Respond(w, r, http.StatusNotFound, errors.New("usuário não encontrado"))
 			return
 		}
-		
+
 		// Validar assinatura se configurada
 		integration, err := s.GetChatwootIntegration(userID)
 		if err != nil {
@@ -5651,7 +5668,7 @@ func (s *server) ChatwootWebhookHandler() http.HandlerFunc {
 			s.Respond(w, r, http.StatusInternalServerError, errors.New("erro interno"))
 			return
 		}
-		
+
 		if integration.WebhookSecret != "" {
 			if !ValidateChatwootWebhookSignature(body, signature, integration.WebhookSecret) {
 				log.Warn().Msg("Assinatura inválida do webhook do Chatwoot")
@@ -5659,14 +5676,14 @@ func (s *server) ChatwootWebhookHandler() http.HandlerFunc {
 				return
 			}
 		}
-		
+
 		// Processar evento
 		if err := s.processChatwootWebhook(userID, &payload); err != nil {
 			log.Error().Err(err).Msg("Erro ao processar webhook do Chatwoot")
 			s.Respond(w, r, http.StatusInternalServerError, errors.New("erro ao processar webhook"))
 			return
 		}
-		
+
 		s.Respond(w, r, http.StatusOK, map[string]string{"message": "Webhook processado com sucesso"})
 	}
 }
@@ -5678,33 +5695,33 @@ func (s *server) processChatwootWebhook(userID string, payload *ChatwootWebhookP
 		log.Debug().Str("event", payload.Event).Msg("Evento do Chatwoot ignorado")
 		return nil
 	}
-	
+
 	// Verificar se a mensagem é de um agente (não do bot)
 	if payload.Message.Sender.Type != "user_bot" {
 		log.Debug().Str("sender_type", payload.Message.Sender.Type).Msg("Mensagem não é de agente, ignorando")
 		return nil
 	}
-	
+
 	// Buscar conversa mapeada
 	conversation, err := s.GetChatwootConversation(userID, strconv.Itoa(payload.Conversation.ID))
 	if err != nil {
 		log.Error().Err(err).Int("conversation_id", payload.Conversation.ID).Msg("Conversa não encontrada")
 		return fmt.Errorf("conversa não encontrada: %w", err)
 	}
-	
+
 	// Buscar cliente WhatsApp
 	client := clientManager.GetWhatsmeowClient(userID)
 	if client == nil {
 		log.Error().Str("user_id", userID).Msg("Cliente WhatsApp não encontrado")
 		return fmt.Errorf("cliente WhatsApp não encontrado")
 	}
-	
+
 	// Enviar mensagem para o WhatsApp
 	whatsappJID := types.JID{
 		User:   conversation.WhatsAppChatJID,
 		Server: types.DefaultUserServer,
 	}
-	
+
 	// Processar tipo de mensagem
 	switch payload.Message.MessageType {
 	case 0: // Texto
@@ -5721,12 +5738,12 @@ func (s *server) processChatwootWebhook(userID string, payload *ChatwootWebhookP
 	default:
 		log.Warn().Int("message_type", payload.Message.MessageType).Msg("Tipo de mensagem não suportado")
 	}
-	
+
 	if err != nil {
 		log.Error().Err(err).Msg("Erro ao enviar mensagem do Chatwoot para WhatsApp")
 		return err
 	}
-	
+
 	// Salvar mapeamento da mensagem
 	mapping := &ChatwootMessageMapping{
 		UserID:            userID,
@@ -5734,11 +5751,11 @@ func (s *server) processChatwootWebhook(userID string, payload *ChatwootWebhookP
 		ChatwootMessageID: payload.Message.ID,
 		Direction:         "outbound",
 	}
-	
+
 	if err := s.SaveChatwootMessageMapping(mapping); err != nil {
 		log.Error().Err(err).Msg("Erro ao salvar mapeamento de mensagem")
 	}
-	
+
 	return nil
 }
 
@@ -5750,22 +5767,22 @@ func (s *server) sendChatwootAttachmentToWhatsApp(client *whatsmeow.Client, jid 
 		return fmt.Errorf("erro ao baixar anexo: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	fileData, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("erro ao ler dados do anexo: %w", err)
 	}
-	
+
 	// Determinar tipo de mídia baseado no content_type
 	switch attachment.ContentType {
 	case "image/jpeg", "image/png", "image/gif", "image/webp":
 		fileLength := uint64(len(fileData))
 		_, err = client.SendMessage(context.Background(), jid, &waE2E.Message{
 			ImageMessage: &waE2E.ImageMessage{
-				Caption:        &attachment.FileName,
-				JPEGThumbnail:  fileData,
-				Mimetype:       &attachment.ContentType,
-				FileLength:     &fileLength,
+				Caption:       &attachment.FileName,
+				JPEGThumbnail: fileData,
+				Mimetype:      &attachment.ContentType,
+				FileLength:    &fileLength,
 			},
 		})
 	case "video/mp4", "video/avi", "video/mov":
@@ -5796,6 +5813,6 @@ func (s *server) sendChatwootAttachmentToWhatsApp(client *whatsmeow.Client, jid 
 			},
 		})
 	}
-	
+
 	return err
 }
