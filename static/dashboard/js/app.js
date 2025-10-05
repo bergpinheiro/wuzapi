@@ -849,9 +849,16 @@ function doUserInfo() {
 }
 
 function showWidgets() {
+  console.log('showWidgets called - showing all widgets');
   document.querySelectorAll('.widget').forEach(widget => {
     widget.classList.remove('hidden');
   });
+  
+  // Debug: check if our specific elements exist
+  const historyConfig = document.getElementById('historyConfig');
+  const chatwootConfig = document.getElementById('chatwootConfig');
+  console.log('After showWidgets - historyConfig:', historyConfig);
+  console.log('After showWidgets - chatwootConfig:', chatwootConfig);
 }
 
 function hideWidgets() {
