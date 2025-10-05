@@ -9,6 +9,8 @@ let currentInstanceData = null;
 
 document.addEventListener('DOMContentLoaded', function() {
   console.log('DOMContentLoaded - Initializing WuzAPI dashboard');
+  console.log('jQuery available:', typeof $ !== 'undefined');
+  console.log('Semantic UI available:', typeof $.fn.modal !== 'undefined');
 
   let isHandlingChange = false;
 
@@ -278,16 +280,28 @@ document.addEventListener('DOMContentLoaded', function() {
   const historyConfigElement = document.getElementById('historyConfig');
   console.log('History config element:', historyConfigElement);
   if (historyConfigElement) {
-    historyConfigElement.addEventListener('click', function() {
-      console.log('History config clicked');
-      $('#modalHistoryConfig').modal({
-        onApprove: function() {
-          saveHistoryConfig();
-          return false;
-        }
-      }).modal('show');
-      loadHistoryConfig();
+    console.log('Adding click listener to historyConfig');
+    historyConfigElement.addEventListener('click', function(e) {
+      console.log('History config clicked - event:', e);
+      e.preventDefault();
+      e.stopPropagation();
+      
+      try {
+        console.log('Opening modalHistoryConfig');
+        $('#modalHistoryConfig').modal({
+          onApprove: function() {
+            console.log('History modal approved');
+            saveHistoryConfig();
+            return false;
+          }
+        }).modal('show');
+        console.log('Loading history config');
+        loadHistoryConfig();
+      } catch (error) {
+        console.error('Error opening history modal:', error);
+      }
     });
+    console.log('History config event listener added successfully');
   } else {
     console.error('historyConfig element not found');
   }
@@ -312,16 +326,28 @@ document.addEventListener('DOMContentLoaded', function() {
   const chatwootConfigElement = document.getElementById('chatwootConfig');
   console.log('Chatwoot config element:', chatwootConfigElement);
   if (chatwootConfigElement) {
-    chatwootConfigElement.addEventListener('click', function() {
-      console.log('Chatwoot config clicked');
-      $('#modalChatwootConfig').modal({
-        onApprove: function() {
-          saveChatwootConfig();
-          return false;
-        }
-      }).modal('show');
-      loadChatwootConfig();
+    console.log('Adding click listener to chatwootConfig');
+    chatwootConfigElement.addEventListener('click', function(e) {
+      console.log('Chatwoot config clicked - event:', e);
+      e.preventDefault();
+      e.stopPropagation();
+      
+      try {
+        console.log('Opening modalChatwootConfig');
+        $('#modalChatwootConfig').modal({
+          onApprove: function() {
+            console.log('Chatwoot modal approved');
+            saveChatwootConfig();
+            return false;
+          }
+        }).modal('show');
+        console.log('Loading chatwoot config');
+        loadChatwootConfig();
+      } catch (error) {
+        console.error('Error opening chatwoot modal:', error);
+      }
     });
+    console.log('Chatwoot config event listener added successfully');
   } else {
     console.error('chatwootConfig element not found');
   }
@@ -859,6 +885,16 @@ function showWidgets() {
   const chatwootConfig = document.getElementById('chatwootConfig');
   console.log('After showWidgets - historyConfig:', historyConfig);
   console.log('After showWidgets - chatwootConfig:', chatwootConfig);
+  
+  // Test if elements are clickable
+  if (historyConfig) {
+    console.log('History config classes:', historyConfig.className);
+    console.log('History config style:', historyConfig.style.cssText);
+  }
+  if (chatwootConfig) {
+    console.log('Chatwoot config classes:', chatwootConfig.className);
+    console.log('Chatwoot config style:', chatwootConfig.style.cssText);
+  }
 }
 
 function hideWidgets() {
