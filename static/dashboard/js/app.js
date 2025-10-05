@@ -302,12 +302,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Chatwoot Configuration
   document.getElementById('chatwootConfig').addEventListener('click', function() {
-    window.open('chatwoot.html?token=' + getToken(), '_blank');
+    $('#modalChatwootConfig').modal({
+      onApprove: function() {
+        saveChatwootConfig();
+        return false;
+      }
+    }).modal('show');
+    loadChatwootConfig();
   });
 
   // S3 Test Connection
   document.getElementById('testS3Connection').addEventListener('click', function() {
     testS3Connection();
+  });
+
+  // Chatwoot Test Connection
+  document.getElementById('testChatwootConnection').addEventListener('click', function() {
+    testChatwootConnection();
   });
 
   // S3 Delete Configuration
@@ -1701,6 +1712,111 @@ async function saveProxyConfig() {
     }
   } catch (error) {
     showError('Error saving proxy configuration');
+    console.error('Error:', error);
+  }
+}
+
+// Chatwoot Configuration Functions
+async function loadChatwootConfig() {
+  try {
+    const token = getLocalStorageItem('token');
+    const myHeaders = new Headers();
+    myHeaders.append('token', token);
+    
+    const res = await fetch(baseUrl + "/integrations/chatwoot/config", {
+      method: "GET",
+      headers: myHeaders
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.data) {
+        const config = data.data;
+        $('#chatwootBaseUrl').val(config.base_url || '');
+        $('#chatwootAccountId').val(config.account_id || '');
+        $('#chatwootApiToken').val(config.api_token || '');
+        $('#chatwootInboxId').val(config.inbox_id || '');
+        $('#chatwootWebhookSecret').val(config.webhook_secret || '');
+        $('#chatwootEnabled').prop('checked', config.enabled || false);
+      }
+    } else {
+      // If no config exists, clear the form
+      $('#chatwootBaseUrl').val('');
+      $('#chatwootAccountId').val('');
+      $('#chatwootApiToken').val('');
+      $('#chatwootInboxId').val('');
+      $('#chatwootWebhookSecret').val('');
+      $('#chatwootEnabled').prop('checked', false);
+    }
+  } catch (error) {
+    console.error('Error loading Chatwoot config:', error);
+  }
+}
+
+async function saveChatwootConfig() {
+  try {
+    const token = getLocalStorageItem('token');
+    const myHeaders = new Headers();
+    myHeaders.append('token', token);
+    myHeaders.append('Content-Type', 'application/json');
+    
+    const config = {
+      base_url: $('#chatwootBaseUrl').val(),
+      account_id: $('#chatwootAccountId').val(),
+      api_token: $('#chatwootApiToken').val(),
+      inbox_id: $('#chatwootInboxId').val(),
+      webhook_secret: $('#chatwootWebhookSecret').val(),
+      enabled: $('#chatwootEnabled').is(':checked')
+    };
+    
+    const res = await fetch(baseUrl + "/integrations/chatwoot/config", {
+      method: "POST",
+      headers: myHeaders,
+      body: JSON.stringify(config)
+    });
+    
+    const data = await res.json();
+    if (data.success) {
+      showSuccess('Chatwoot configuration saved successfully');
+      $('#modalChatwootConfig').modal('hide');
+    } else {
+      showError('Failed to save Chatwoot configuration: ' + (data.error || 'Unknown error'));
+    }
+  } catch (error) {
+    showError('Error saving Chatwoot configuration');
+    console.error('Error:', error);
+  }
+}
+
+async function testChatwootConnection() {
+  try {
+    const token = getLocalStorageItem('token');
+    const myHeaders = new Headers();
+    myHeaders.append('token', token);
+    myHeaders.append('Content-Type', 'application/json');
+    
+    const config = {
+      base_url: $('#chatwootBaseUrl').val(),
+      account_id: $('#chatwootAccountId').val(),
+      api_token: $('#chatwootApiToken').val(),
+      inbox_id: $('#chatwootInboxId').val(),
+      webhook_secret: $('#chatwootWebhookSecret').val()
+    };
+    
+    const res = await fetch(baseUrl + "/integrations/chatwoot/test", {
+      method: "POST",
+      headers: myHeaders,
+      body: JSON.stringify(config)
+    });
+    
+    const data = await res.json();
+    if (data.success) {
+      showSuccess('Chatwoot connection test successful!');
+    } else {
+      showError('Chatwoot connection test failed: ' + (data.error || 'Unknown error'));
+    }
+  } catch (error) {
+    showError('Error testing Chatwoot connection');
     console.error('Error:', error);
   }
 }

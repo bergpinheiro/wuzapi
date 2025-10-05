@@ -481,10 +481,53 @@
     </div>
     <div class="actions">
       <div class="ui cancel button secondary">Cancel</div>
-      <div class="ui positive right labeled icon button" id="saveProxyConfig">Save<i class="checkmark icon"></i></div>
+      <div class="ui positive right labeled icon button" id="saveHistoryConfig">Save<i class="checkmark icon"></i></div>
     </div>
   </div>
 
+  <!-- Chatwoot Integration Modal -->
+  <div class="ui modal" id="modalChatwootConfig"><i class="close icon"></i>
+    <div class="header">Chatwoot Integration Configuration</div>
+    <div class="content">
+      <div class="ui info message">
+        <div class="header">Chatwoot Integration</div>
+        <p>Configure Chatwoot integration for customer support. This will enable bidirectional messaging between WhatsApp and Chatwoot.</p>
+      </div>
+      <div class="ui form">
+        <div class="field">
+          <label>Chatwoot Base URL</label>
+          <input id="chatwootBaseUrl" type="url" placeholder="https://your-chatwoot-instance.com">
+        </div>
+        <div class="field">
+          <label>Account ID</label>
+          <input id="chatwootAccountId" type="text" placeholder="Enter your Chatwoot account ID">
+        </div>
+        <div class="field">
+          <label>API Token</label>
+          <input id="chatwootApiToken" type="password" placeholder="Enter your Chatwoot API token">
+        </div>
+        <div class="field">
+          <label>Inbox ID</label>
+          <input id="chatwootInboxId" type="text" placeholder="Enter your Chatwoot inbox ID">
+        </div>
+        <div class="field">
+          <label>Webhook Secret (Optional)</label>
+          <input id="chatwootWebhookSecret" type="password" placeholder="Enter webhook secret for security">
+        </div>
+        <div class="field">
+          <div class="ui toggle checkbox" id="chatwootEnabledToggle">
+            <input type="checkbox" id="chatwootEnabled">
+            <label>Enable Chatwoot Integration</label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="actions">
+      <div class="ui cancel button secondary">Cancel</div>
+      <div class="ui button" id="testChatwootConnection">Test Connection</div>
+      <div class="ui positive right labeled icon button" id="saveChatwootConfig">Save<i class="checkmark icon"></i></div>
+    </div>
+  </div>
 
   <!-- Proxy Configuration Modal -->
   <div class="ui modal" id="modalProxyConfig"><i class="close icon"></i>
